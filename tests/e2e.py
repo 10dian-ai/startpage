@@ -391,24 +391,31 @@ async def qr_dialog(browser, check):
     async with Session(browser) as s:
         p = s.page
         is_open = "document.getElementById('myModal').open"
+
+        async def closes():
+            # 关闭动画 0.18 秒，代码最迟 0.68 秒兜底关闭；无头浏览器忙的时候帧会慢，给到 2 秒
+            try:
+                await p.wait_for_function(f"!{is_open}", timeout=2000)
+                return True
+            except Exception:
+                return False
+
         await p.click(".tab-item.lx")
         await p.click(".a2 .item >> nth=0")
         check(await s.ev(is_open), "点「我的QQ」应打开二维码弹窗")
         check(await s.ev("document.getElementById('modalTitle').textContent") == "用 QQ 扫码加我", "弹窗标题应来自 data-qr-title")
         check((await s.ev("document.getElementById('modalSave').getAttribute('href')")).endswith("photos/QQ.jpg"), "保存按钮应指向二维码")
         await p.keyboard.press("Escape")
-        await asyncio.sleep(0.6)
-        check(not await s.ev(is_open), "Esc 应关闭弹窗")
+        check(await closes(), "Esc 应关闭弹窗")
         await p.click(".a2 .item >> nth=0")
         await p.mouse.click(5, 5)
-        await asyncio.sleep(0.6)
-        check(not await s.ev(is_open), "点遮罩应关闭弹窗")
+        check(await closes(), "点遮罩应关闭弹窗")
         await p.click(".a2 .item >> nth=0")
         await p.click("#modalImage")
-        check(await s.ev(is_open), "点二维码本身不应关闭")
+        await asyncio.sleep(0.5)
+        check(await s.ev(f"{is_open} && !document.getElementById('myModal').classList.contains('is-closing')"), "点二维码本身不应关闭")
         await p.click("#myModal .close")
-        await asyncio.sleep(0.6)
-        check(not await s.ev(is_open), "点 × 应关闭弹窗")
+        check(await closes(), "点 × 应关闭弹窗")
         await s.ev("showModal('photos/QQ.jpg')")
         check(await s.ev(is_open), "README 旧写法 showModal() 应仍然可用")
         await s.ev("""(() => { const d = document.createElement('div'); d.style.cssText = 'position:fixed;inset:0;z-index:2147483647'; document.body.appendChild(d); })()""")
