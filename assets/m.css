@@ -18,7 +18,9 @@
 	#app{
 		width: 100%;
 	        margin: 0 auto;
-	        height:100%;
+	        /* height:100% 在父元素没有高度时不生效，手机上内容少时卡片只有半屏 */
+	        min-height: 100vh;
+	        min-height: 100dvh;
 	        border-radius: 0px;
 	         padding:0px;
 	}

@@ -209,7 +209,7 @@ body {
 }
 
 .desc {
-	width: 100%
+	width: 100%;
 	padding: 0 12px;
 	font-size: 14px;
 	text-align: center;
@@ -289,9 +289,10 @@ body {
 }
 
 /* ========== 应用列表 ========== */
+/* 背景透明，跟随 #app 的半透明底色；原来的不透明 #f4f6f8 会和上半部分形成一块色差 */
 .app-list {
 	width: 100%;
-	background: #f4f6f8;
+	background: transparent;
 	padding: 12px;
 	-ms-flex-wrap: wrap;
 	flex-wrap: wrap;
@@ -333,10 +334,13 @@ body {
 	transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
 }
 
-.item:hover {
-	width: 48%;
-	transform: scale(1.05);
-	opacity: 0.9;
+/* 悬停只做缩放，不改宽度：改宽度会让卡片在边缘来回进出 hover 状态而抖动，
+   还会把同一行的邻居挤动。仅在真正支持悬停的设备上生效，避免手机上点完一直放大。 */
+@media (hover: hover) {
+	.item:hover {
+		transform: scale(1.05);
+		opacity: 0.9;
+	}
 }
 
 .content-wrap {
