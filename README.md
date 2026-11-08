@@ -10,53 +10,60 @@
 - 📱 **响应式设计** - 完美适配移动端和PC端
 - 🎵 **音乐播放器** - 集成第三方音乐播放组件
 - 🌸 **樱花飘落特效** - 页面装饰效果，增加视觉趣味
-- 🔄 **双标签页切换** - 支持"导航"和"联系"两个内容区域切换
+- 🔄 **双标签页切换** - 支持"导航"和"联系"两个内容区域切换（支持键盘操作）
 
 ## 🛠️ 技术栈
 
 - HTML5 / CSS3
-- JavaScript (原生 + jQuery)
+- 原生 JavaScript（无 jQuery 等第三方依赖）
 - 第三方API集成
 
 ## 📁 项目结构
-├── index.php # 主页面文件
 
-├── assets/ # 静态资源目录
+```text
+├── index.php          # 主页面文件（纯 HTML，也可以改名为 index.html）
+├── assets/            # 静态资源目录
+│   ├── m.css          # 基础样式（normalize + 页面容器）
+│   ├── style.css      # 主样式文件（页面所有样式都在这里）
+│   ├── main.js        # 轮播、标签切换、二维码弹窗
+│   ├── lx.png         # 联系标签图标
+│   └── zy.png         # 导航标签图标
+└── photos/            # 图片资源目录
+    ├── TX.jpg         # 头像图片
+    ├── QQ.jpg         # QQ二维码
+    ├── QQ图标.png      # QQ图标
+    └── bj.png         # Banner 兜底图（图片接口不可用时显示）
+```
 
-│ ├── m.css # 样式文件
-
-│ ├── style.css # 主样式文件
-
-│ ├── lx.png # 联系标签图标
-
-│ └── zy.png # 导航标签图标
-
-└── photos/ # 图片资源目录
-
-├── TX.jpg # 头像图片
-
-├── QQ.jpg # QQ二维码
-
-└── QQ图标.png # QQ图标
 ## 🚀 快速开始
 
-部署到服务器
-直接将项目文件上传到您的网站根目录即可。
+### 部署到服务器
 
-⚙️ 配置说明
-修改个人信息
-在 index.php 中找到以下部分进行修改：
-```bash
+直接将项目文件上传到您的网站根目录或任意子目录即可（资源都是相对路径）。
+
+页面里没有 PHP 代码，不支持 PHP 的静态托管（GitHub Pages、Nginx 纯静态等）把 `index.php` 改名为 `index.html` 即可。
+
+## ⚙️ 配置说明
+
+### 修改个人信息
+
+在 `index.php` 中找到以下部分进行修改：
+
+```html
 <!-- 修改作者名称 -->
 <div class="author-name">引导页</div>
 
 <!-- 修改头像图片路径 -->
 <div class="logo">
-    <img src="/photos/TX.jpg" alt="">
+    <img src="photos/TX.jpg" alt="">
 </div>
-修改导航链接
-在 .app-list.a1 区域修改或添加导航项：
+```
 
+### 修改导航链接
+
+在 `.app-list.a1` 区域修改或添加导航项：
+
+```html
 <a href="你的链接" class="item" target="_blank">
     <div class="content-wrap">
         <div class="img-wrap">
@@ -65,11 +72,15 @@
         <p class="app-name">项目名称</p>
     </div>
 </a>
-修改联系信息
-在 .app-list.a2 区域修改联系方式：
+```
 
-<!-- QQ号点击显示二维码 -->
-<a href="javascript:void(0);" class="item" onclick="showModal('/photos/QQ.jpg')">
+### 修改联系信息
+
+在 `.app-list.a2` 区域修改联系方式：
+
+```html
+<!-- 点击弹出二维码：data-qr 和 href 都写二维码图片地址 -->
+<a href="photos/QQ.jpg" class="item" data-qr="photos/QQ.jpg">
     ...
 </a>
 
@@ -77,50 +88,75 @@
 <a href="QQ群链接" class="item" target="_blank">
     ...
 </a>
-API配置
+```
+
+旧写法 `onclick="showModal('photos/QQ.jpg')"` 仍然可用。
+
+### 图片接口与轮播配置
+
 项目使用了以下API接口（可根据需要替换）：
 
-用途	API地址
-背景图片	https://api.lqay.cn/api/zxsjt/?cat=heng
-Banner图片	https://api.lqay.cn/api/zxsjt/?cat=heng
-如需更换图片源，请修改JavaScript中的 API_BASE 变量。
+| 用途 | API地址 |
+| --- | --- |
+| 背景图片 | https://api.lqay.cn/api/zxsjt/?cat=heng |
+| Banner图片 | https://api.lqay.cn/api/zxsjt/?cat=heng |
 
-📱 功能说明
-背景图切换
-每5秒自动切换一次
+如需更换图片源或调整轮播速度，修改 `index.php` 底部的 `window.STARTPAGE_CONFIG`，不需要改 JS 文件：
 
-带有毛刺淡出+弹性淡入动画
+```js
+window.STARTPAGE_CONFIG = {
+    imageApi: "https://api.lqay.cn/api/zxsjt/?cat=heng", // 背景和 Banner 共用的随机图接口
+    background: { interval: 5000 },                      // 背景切换间隔（毫秒）
+    banner: { interval: 3000, fallback: "photos/bj.png" } // Banner 切换间隔；接口不可用时先显示的本地图
+};
+```
 
-双图层预加载机制，切换流畅
+- 背景和 Banner 想用不同的接口，可以分别写 `background: { api: "..." }`、`banner: { api: "..." }`
+- `fallback` 留空表示接口不可用时不显示兜底图
+- 网址后面加 `?debug`，浏览器控制台会输出预加载、切换、重试的详细日志
 
-Banner轮播
-每3秒自动切换一次
+## 📱 功能说明
 
-支持左右方向交替滑动
+### 背景图切换
 
-切换时带有光效扫过效果
+- 每5秒自动切换一次
+- 带有毛刺淡出+弹性淡入动画
+- 双图层预加载机制，切换流畅
 
-标签页切换
-导航：展示个人项目/网站链接
+### Banner轮播
 
-联系：展示QQ和QQ群联系方式
+- 每3秒自动切换一次
+- 支持左右方向交替滑动
+- 切换时带有光效扫过效果
 
-🤝 贡献
+### 加载失败与后台
+
+- 图片加载失败会按 2 秒、4 秒、8 秒……自动重试（最长 30 秒一次），接口恢复后继续轮播
+- 页面切到后台时暂停轮播，不在后台下载图片
+
+### 标签页切换
+
+- 导航：展示个人项目/网站链接
+- 联系：展示QQ和QQ群联系方式
+
+## 🤝 贡献
+
 欢迎提交 Issue 和 Pull Request！
 
-📄 许可证
+## 📄 许可证
+
 MIT
 
-🙏 致谢
-音乐播放器由 小枫音乐播放器 提供
+## 🙏 致谢
 
-图片API由 lqay.cn 提供
+- 音乐播放器由 小枫音乐播放器 提供
+- 图片API由 lqay.cn 提供
 
-📧 联系方式
+## 📧 联系方式
+
 如有问题或建议，欢迎联系：
 
-个人主页：https://me.lqay.cn
-
-博客：https://blog.lqay.cn
+- 个人主页：https://me.lqay.cn
+- 博客：https://blog.lqay.cn
 
 ⭐ 如果这个项目对你有帮助，欢迎点个Star！
