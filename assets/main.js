@@ -1,11 +1,12 @@
 /*!
- * 引导页脚本：背景 / Banner 轮播、导航 / 联系标签、二维码弹窗
+ * 引导页核心脚本：背景 / Banner 轮播、导航 / 联系标签、二维码弹窗、复制群号、图标兜底
  *
  * - 不依赖 jQuery 或其它第三方库（原来 jQuery 从 CDN 加载失败时，整段脚本直接报错，
  *   标签切换、弹窗、背景和 Banner 轮播会全部失效）。
  * - 可改的设置都在 index.php 里的 window.STARTPAGE_CONFIG，不用改这个文件。
- * - 调试：网址后面加 ?debug，控制台会输出每次预加载 / 切换 / 重试的日志。
+ * - 调试：网址后面加 ?debug，控制台会输出每次预加载 / 切换 / 暂停 / 重试的日志。
  * - 本文件要放在 </body> 前、第三方脚本之前引入（会立刻初始化，不等外部脚本）。
+ * - 装饰效果（波纹、戳头像）在 effects.js，和这里互不依赖。
  */
 (() => {
 	'use strict';
@@ -15,7 +16,8 @@
 	const DEFAULTS = {
 		imageApi: 'https://api.lqay.cn/api/zxsjt/?cat=heng', // 背景和 Banner 共用的随机图接口
 		background: { interval: 5000, api: '', fallback: '' }, // api 留空 = 用 imageApi
-		banner: { interval: 3000, api: '', fallback: '' }, // fallback：接口挂了时先显示的本地图
+		banner: { interval: 3000, api: '', fallback: '', pauseOffscreen: true }, // 滚出屏幕时暂停
+		respectSaveData: true, // 浏览器开了"省流量"时只加载一张，不自动轮播
 		loadTimeout: 15000, // 单张图片最长等待时间（毫秒）
 		retryDelay: 2000, // 加载失败后的首次重试间隔，之后每次翻倍
 		maxRetryDelay: 30000, // 重试间隔上限
@@ -65,6 +67,12 @@
 		} catch (e) {
 			return false;
 		}
+	}
+
+	// 浏览器开了"省流量"（Chrome 安卓的 Lite 模式等）
+	function saveDataOn() {
+		const c = navigator.connection;
+		return Boolean(c && c.saveData);
 	}
 
 	// 随机图接口每次都要换参数，否则浏览器 / CDN 可能返回缓存的同一张图。
@@ -123,6 +131,7 @@
 
 	// 等元素上的 CSS 动画播完。animationend 不一定会来（后台标签页不渲染、动画被取消等），
 	// 原来的代码只靠它解锁，一旦没来轮播就永远卡住；这里按 CSS 里写的时长 + 余量兜底。
+	// 时长从 CSS 读取，所以"减少动态效果"时换成的短动画也能正确等待。
 	function animationDone(el) {
 		const cs = getComputedStyle(el);
 		if (!cs.animationName || cs.animationName === 'none') return Promise.resolve();
@@ -178,26 +187,36 @@
 	/**
 	 * 背景和 Banner 共用的轮播逻辑（原来是两份几乎一样的代码，bug 也是两份）。
 	 *
-	 * 和原版的区别：
 	 * - 直接显示预加载好的 <img>，不再对随机图地址发第二次请求；
 	 * - 预加载的图片"取用即清空"：不会因为下一张还没下载完就把当前这张再切一遍；
 	 * - 同一时间最多一个预加载请求：网速慢时不会越积越多；
 	 * - 用 setTimeout 链代替 setInterval + 150ms 轮询：接口出错时不会无限叠加定时器；
 	 * - 加载失败按 2s、4s、8s… 退避重试（上限 maxRetryDelay），接口恢复后自动继续；
-	 * - 页面切到后台时暂停，回到前台再继续，后台不再下载壁纸。
+	 * - 暂停条件可以叠加：页面切到后台、Banner 滚出屏幕；都恢复后才继续轮播；
+	 * - rotate=false（省流量）时只显示一张。
 	 */
-	function createCarousel({ name, layers, transition, api, interval, fallback }, cfg) {
+	function createCarousel(opts, cfg) {
+		const { name, layers, transition, api, interval, fallback, watch, rotate, onFirstShown } = opts;
 		let [front, back] = layers; // front：当前显示的图层
 		let upcoming = null; // 预加载中的下一张（Promise<HTMLImageElement>）
 		let shown = false; // 是否已经显示过图片（包括兜底图）
 		let busy = false; // 正在加载 / 切换中
 		let timer = 0;
 		let failures = 0;
+		const pauses = new Set(); // 'hidden' | 'offscreen'
+
+		const paused = () => pauses.size > 0;
+		const resting = () => shown && (paused() || !rotate); // 已经有图了，而且现在不该继续换
 
 		const paint = (el, img) => {
 			if (img) el.replaceChildren(img);
 			else el.replaceChildren();
 		};
+
+		function firstShown() {
+			shown = true;
+			if (onFirstShown) onFirstShown();
+		}
 
 		function preload() {
 			if (!upcoming) {
@@ -216,9 +235,10 @@
 		}
 
 		async function show(img) {
-			if (!shown) { // 第一张直接显示，不播放切换动画（和原版一致）
+			if (!shown) { // 第一张直接淡入，不播放切换动画
+				img.classList.add('is-first');
 				paint(front, img);
-				shown = true;
+				firstShown();
 				return;
 			}
 			paint(back, img);
@@ -239,8 +259,7 @@
 
 		async function tick() {
 			timer = 0;
-			if (busy) return;
-			if (shown && document.hidden) return; // 后台暂停，visibilitychange 时恢复
+			if (busy || resting()) return;
 			busy = true;
 			let delay;
 			try {
@@ -250,7 +269,7 @@
 				failures = 0;
 				await show(img);
 				log.debug(name, '已切换', img.src);
-				if (!document.hidden) preload(); // 展示这一张的同时准备下一张
+				if (rotate && !paused()) preload(); // 展示这一张的同时准备下一张
 				delay = Math.max(0, interval - (Date.now() - started));
 			} catch (err) {
 				failures += 1;
@@ -259,31 +278,44 @@
 				if (failures === 1) log.warn(msg); else log.debug(msg);
 				if (!shown && fallback) {
 					log.info(`${name}：先显示兜底图 ${fallback}`);
-					paint(front, createImg(fallback));
-					shown = true;
+					const img = createImg(fallback);
+					img.classList.add('is-first');
+					paint(front, img);
+					firstShown();
 				}
 			} finally {
 				busy = false;
 			}
-			if (!(shown && document.hidden)) schedule(delay);
+			if (!resting()) schedule(delay);
 		}
 
-		function onVisibilityChange() {
-			if (document.hidden) {
+		// 暂停 / 恢复。还没显示过图片时不暂停，保证页面至少有一张图
+		function setPause(reason, on) {
+			const before = paused();
+			if (on) pauses.add(reason); else pauses.delete(reason);
+			if (paused() === before) return;
+			if (paused()) {
 				if (shown) {
 					clearTimeout(timer);
 					timer = 0;
-					log.debug(name, '页面不可见，暂停');
+					log.debug(name, '暂停：', [...pauses].join('、'));
 				}
-			} else if (!busy && !timer) {
-				log.debug(name, '页面可见，继续');
+			} else if (rotate && !busy && !timer) {
+				log.debug(name, '继续轮播');
 				schedule(failures ? cfg.retryDelay : interval);
 			}
 		}
 
 		return {
 			start() {
-				document.addEventListener('visibilitychange', onVisibilityChange);
+				setPause('hidden', document.hidden);
+				document.addEventListener('visibilitychange', () => setPause('hidden', document.hidden));
+				if (watch && 'IntersectionObserver' in window) {
+					new IntersectionObserver((entries) => {
+						const entry = entries[entries.length - 1];
+						setPause('offscreen', !entry.isIntersecting);
+					}).observe(watch);
+				}
 				tick();
 			},
 		};
@@ -291,9 +323,23 @@
 
 	function initCarousels(cfg) {
 		const byId = (id) => document.getElementById(id);
+		const rotate = !(cfg.respectSaveData && saveDataOn());
+		if (!rotate) log.info('浏览器开启了省流量模式：背景和 Banner 只加载一张，不自动轮播');
 		const setups = [
-			{ name: '背景', ids: ['bgLayer1', 'bgLayer2'], conf: cfg.background, transition: () => fadeTransition() },
-			{ name: 'Banner', ids: ['bannerLayer1', 'bannerLayer2', 'bannerLayers'], conf: cfg.banner, transition: () => slideTransition(byId('bannerLayers')) },
+			{
+				name: '背景',
+				ids: ['bgLayer1', 'bgLayer2'],
+				conf: cfg.background,
+				transition: () => fadeTransition(),
+			},
+			{
+				name: 'Banner',
+				ids: ['bannerLayer1', 'bannerLayer2', 'bannerLayers'],
+				conf: cfg.banner,
+				transition: () => slideTransition(byId('bannerLayers')),
+				watch: () => (cfg.banner.pauseOffscreen ? byId('bannerContainer') || byId('bannerLayers') : null),
+				onFirstShown: () => byId('bannerLayers').classList.remove('is-loading'), // 收起骨架闪光
+			},
 		];
 		for (const s of setups) {
 			const missing = s.ids.filter((id) => !byId(id));
@@ -303,6 +349,7 @@
 			}
 			if (!isHttpUrl(s.conf.api)) {
 				log.warn(`${s.name}：图片接口地址无效（${s.conf.api}），不启动轮播`);
+				if (s.onFirstShown) s.onFirstShown();
 				continue;
 			}
 			createCarousel({
@@ -312,6 +359,9 @@
 				api: s.conf.api,
 				interval: s.conf.interval,
 				fallback: s.conf.fallback,
+				watch: s.watch ? s.watch() : null,
+				rotate,
+				onFirstShown: s.onFirstShown,
 			}, cfg).start();
 		}
 	}
@@ -319,18 +369,27 @@
 	/* ======================= 标签：导航 / 联系 ======================= */
 
 	function initTabs() {
+		const list = document.querySelector('.tab-list');
 		const tabs = Array.from(document.querySelectorAll('.tab-list [role="tab"]'));
-		if (!tabs.length) return;
+		if (!list || !tabs.length) return;
 		const panelOf = (tab) => document.getElementById(tab.getAttribute('aria-controls'));
+		list.style.setProperty('--tab-count', String(tabs.length));
 
 		function select(tab, focus) {
+			list.style.setProperty('--tab-index', String(tabs.indexOf(tab))); // 粉色底块滑过去
 			for (const t of tabs) {
 				const on = t === tab;
 				t.classList.toggle('active', on);
 				t.setAttribute('aria-selected', String(on));
 				t.tabIndex = on ? 0 : -1;
 				const panel = panelOf(t);
-				if (panel) panel.hidden = !on;
+				if (!panel) continue;
+				if (on && panel.hidden) { // 新显示的面板淡入一下
+					panel.classList.remove('is-entering');
+					void panel.offsetWidth;
+					panel.classList.add('is-entering');
+				}
+				panel.hidden = !on;
 			}
 			if (focus) tab.focus();
 		}
@@ -348,7 +407,82 @@
 				}
 			});
 		});
+		for (const t of tabs) {
+			const panel = panelOf(t);
+			if (panel) panel.addEventListener('animationend', () => panel.classList.remove('is-entering'));
+		}
 		select(tabs.find((t) => t.getAttribute('aria-selected') === 'true') || tabs[0]);
+	}
+
+	/* ======================= 底部提示 ======================= */
+
+	let toastEl = null;
+	let toastTimer = 0;
+
+	function initToast() {
+		toastEl = document.createElement('div');
+		toastEl.className = 'toast';
+		toastEl.setAttribute('role', 'status'); // 读屏软件会念出提示
+		toastEl.setAttribute('aria-live', 'polite');
+		document.body.appendChild(toastEl);
+	}
+
+	function toast(message) {
+		if (!toastEl) initToast();
+		toastEl.textContent = message;
+		toastEl.classList.remove('is-visible');
+		void toastEl.offsetWidth; // 连续提示时重新弹一下
+		toastEl.classList.add('is-visible');
+		clearTimeout(toastTimer);
+		toastTimer = setTimeout(() => toastEl.classList.remove('is-visible'), 1800);
+	}
+
+	/* ======================= 复制（群号等） ======================= */
+
+	async function copyText(text) {
+		if (navigator.clipboard && window.isSecureContext) {
+			try {
+				await navigator.clipboard.writeText(text);
+				return true;
+			} catch (e) {
+				log.debug('Clipboard API 不可用，改用备用方式', e);
+			}
+		}
+		// http 网站或旧浏览器：用隐藏的文本框复制
+		const ta = document.createElement('textarea');
+		ta.value = text;
+		ta.setAttribute('readonly', '');
+		ta.style.cssText = 'position:fixed;top:-1000px;left:0;opacity:0';
+		document.body.appendChild(ta);
+		ta.select();
+		let ok = false;
+		try {
+			ok = document.execCommand('copy');
+		} catch (e) {
+			ok = false;
+		}
+		ta.remove();
+		return ok;
+	}
+
+	function initCopy() {
+		const resetTimers = new WeakMap();
+		document.addEventListener('click', async (e) => {
+			const btn = e.target instanceof Element ? e.target.closest('[data-copy]') : null;
+			if (!btn) return;
+			e.preventDefault();
+			e.stopPropagation(); // 不触发卡片本身的链接
+			const text = btn.getAttribute('data-copy');
+			const ok = await copyText(text);
+			if (ok) {
+				toast(btn.getAttribute('data-copy-done') || '已复制');
+				btn.classList.add('is-copied');
+				clearTimeout(resetTimers.get(btn));
+				resetTimers.set(btn, setTimeout(() => btn.classList.remove('is-copied'), 1600));
+			} else {
+				toast(`没能自动复制，请手动复制：${text}`);
+			}
+		});
 	}
 
 	/* ======================= 二维码弹窗 ======================= */
@@ -356,40 +490,87 @@
 	function initQrDialog() {
 		const dialog = document.getElementById('myModal');
 		const img = document.getElementById('modalImage');
+		const title = document.getElementById('modalTitle');
+		const save = document.getElementById('modalSave');
 		if (!dialog || !img || typeof dialog.showModal !== 'function') {
 			return null; // 极老的浏览器不支持 <dialog>：链接本身指向二维码图片，点击直接打开
 		}
+		const defaultTitle = title ? title.textContent : '';
 
-		function open(src) {
+		function open(src, heading) {
 			img.src = src;
+			if (title) title.textContent = heading || defaultTitle;
+			if (save) save.href = src;
+			dialog.classList.remove('is-closing');
 			if (!dialog.open) dialog.showModal();
 		}
 
+		// 先播关闭动画再真正关闭
+		function close() {
+			if (!dialog.open || dialog.classList.contains('is-closing')) return;
+			dialog.classList.add('is-closing');
+			animationDone(dialog).then(() => {
+				dialog.classList.remove('is-closing');
+				dialog.close();
+			});
+		}
+
 		document.addEventListener('click', (e) => {
-			const trigger = e.target.closest('[data-qr]');
+			const trigger = e.target instanceof Element ? e.target.closest('[data-qr]') : null;
 			if (!trigger) return;
 			e.preventDefault();
-			open(trigger.getAttribute('data-qr'));
+			open(trigger.getAttribute('data-qr'), trigger.getAttribute('data-qr-title'));
+		});
+
+		dialog.addEventListener('cancel', (e) => { // Esc
+			e.preventDefault();
+			close();
 		});
 
 		dialog.addEventListener('click', (e) => {
 			if (e.target.closest('.close')) {
-				dialog.close();
+				close();
 				return;
 			}
 			const r = dialog.getBoundingClientRect(); // 点在弹窗外面（遮罩上）也关闭
 			if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) {
-				dialog.close();
+				close();
 			}
 		});
 		return open;
+	}
+
+	/* ======================= 图标加载失败兜底 ======================= */
+
+	// 导航图标来自外部 CDN，挂了的时候用名称的第一个字代替，而不是一个破图标
+	function initImageFallbacks() {
+		const replace = (img) => {
+			const tile = img.closest('.item');
+			const name = tile ? tile.querySelector('.app-name') : null;
+			const letter = Array.from(name ? name.textContent.trim() : '')[0] || '·';
+			const span = document.createElement('span');
+			span.className = 'img-fallback';
+			span.setAttribute('aria-hidden', 'true');
+			span.textContent = letter;
+			log.warn('图标加载失败，已用文字代替：', img.currentSrc || img.src);
+			img.replaceWith(span);
+		};
+		for (const img of document.querySelectorAll('.img-wrap img')) {
+			if (img.complete && img.naturalWidth === 0 && img.getAttribute('src')) replace(img);
+			else img.addEventListener('error', () => replace(img), { once: true });
+		}
 	}
 
 	/* ======================= 启动 ======================= */
 
 	function init() {
 		const cfg = readConfig();
+		// iOS Safari 只有页面监听了 touchstart 才会显示 :active 按下效果
+		document.addEventListener('touchstart', () => {}, { passive: true });
+		initToast();
 		initTabs();
+		initCopy();
+		initImageFallbacks();
 		const openQr = initQrDialog();
 		if (openQr) window.showModal = openQr; // 兼容旧写法：onclick="showModal('photos/QQ.jpg')"
 		initCarousels(cfg);
