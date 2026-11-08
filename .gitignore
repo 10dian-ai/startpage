@@ -1,0 +1,3 @@
+# Python 跑测试时生成的缓存
+__pycache__/
+*.pyc
