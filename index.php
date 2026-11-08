@@ -11,21 +11,23 @@
     <title>永久引导页</title>
     <link href="assets/m.css" rel="stylesheet">
     <link rel="stylesheet" type="text/css" href="assets/style.css">
+    <!-- 浏览器禁用 JS 时两个列表都显示，联系方式不会被藏起来 -->
+    <noscript><style>.app-list[hidden] { display: flex; }</style></noscript>
 </head>
 <body>
-    <!-- 页面背景双图层 -->
-    <div class="bg-stage">
-        <div class="bg-layer bg-current" id="bgLayer1"></div>
-        <div class="bg-layer bg-next" id="bgLayer2"></div>
+    <!-- 页面背景双图层（纯装饰，读屏软件跳过） -->
+    <div class="bg-stage" aria-hidden="true">
+        <div class="bg-layer is-active" id="bgLayer1"></div>
+        <div class="bg-layer" id="bgLayer2"></div>
     </div>
     
     <div id="app">
         <div class="header">
             <div class="banner-container" id="bannerContainer">
                 <!-- 图片层用独立的容器，设置 overflow:hidden 裁剪溢出 -->
-                <div class="banner-layers" id="bannerLayers">
-                    <div class="banner-layer banner-current" id="bannerLayer1"></div>
-                    <div class="banner-layer banner-next" id="bannerLayer2"></div>
+                <div class="banner-layers" id="bannerLayers" aria-hidden="true">
+                    <div class="banner-layer is-active" id="bannerLayer1"></div>
+                    <div class="banner-layer" id="bannerLayer2"></div>
                 </div>
                 <div class="logo">
                     <img src="photos/TX.jpg" alt="">
@@ -35,16 +37,16 @@
             <p class="desc">永久引导页</p>
         </div>
         <div class="body">
-            <div class="tab-list">
-                <div class="tab-item zy">
+            <div class="tab-list" role="tablist">
+                <div class="tab-item zy active" role="tab" id="tab-nav" aria-controls="panel-nav" aria-selected="true" tabindex="0">
                     <span class="text">导航</span>
                 </div>
-                <div class="tab-item lx">
+                <div class="tab-item lx" role="tab" id="tab-contact" aria-controls="panel-contact" aria-selected="false" tabindex="-1">
                     <span class="text">联系</span>
                 </div>
             </div>
             <!-- 应用列表1 - 导航 -->
-            <div class="app-list a1">
+            <div class="app-list a1" id="panel-nav" role="tabpanel" aria-labelledby="tab-nav">
                 <a href="https://me.lqay.cn" class="item" target="_blank" ><div class="content-wrap"><div class="img-wrap"><img src="https://cdn.jsdmirror.com/gh/lqay-cn/cdn@main/img/zx/f/真寻413.jpg" alt=""></div><p class="app-name">个人主页</p></div></a>
                 
                 <a href="https://blog.lqay.cn" class="item" target="_blank"><div class="content-wrap"><div class="img-wrap"><img src="https://cdn.jsdmirror.com/gh/lqay-cn/cdn@main/img/zx/f/真寻1048.jpg" alt=""></div><p class="app-name">个人博客</p></div></a>
@@ -64,8 +66,9 @@
                 <a href="https://gallery.lqay.cn/" class="item" target="_blank"><div class="content-wrap"><div class="img-wrap"><img src="https://cdn.jsdmirror.com/gh/lqay-cn/cdn@main/img/zx/f/真寻216.jpg" alt=""></div><p class="app-name">画廊</p></div></a>
             </div>
             <!-- 应用列表2 - 联系 -->
-            <div class="app-list a2">
-                <a href="javascript:void(0);" class="item" onclick="showModal('photos/QQ.jpg')">
+            <div class="app-list a2" id="panel-contact" role="tabpanel" aria-labelledby="tab-contact" hidden>
+                <!-- data-qr：点击弹出二维码；href 指向同一张图，脚本没跑起来时也能直接打开 -->
+                <a href="photos/QQ.jpg" class="item" data-qr="photos/QQ.jpg">
                     <div class="content-wrap">
                         <div class="img-wrap"><img src="photos/QQ图标.png" alt=""></div>
                         <p class="app-name">我的QQ</p>
@@ -85,224 +88,21 @@
         </div>
     </div>
     
-    <div id="myModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <img id="modalImage" src="" alt="Image" style="width:100%">
-        </div>
-    </div>
-    
-    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+    <!-- 二维码弹窗：原生 <dialog>，Esc / 点遮罩 / 点 × 都能关闭 -->
+    <dialog id="myModal" class="modal" aria-label="QQ 二维码">
+        <button type="button" class="close" aria-label="关闭">&times;</button>
+        <img id="modalImage" alt="QQ 二维码">
+    </dialog>
+
     <script>
-        jQuery(document).ready(function($) {
-            $(".a1").css("display", "flex");
-            $(".a2").css("display", "none");
-            $(".zy").click(function() { 
-                $(".a1").css("display", "flex"); 
-                $(".a2").css("display", "none"); 
-            });
-            $(".lx").click(function() { 
-                $(".a1").css("display", "none"); 
-                $(".a2").css("display", "flex"); 
-            });
-        });
-        
-        function showModal(imageSrc) { 
-            $("#modalImage").attr("src", imageSrc); 
-            $("#myModal").css("display", "block"); 
-        }
-        $(".close").click(function() { 
-            $("#myModal").css("display", "none"); 
-        });
-        $(window).click(function(event) { 
-            if ($(event.target).is("#myModal")) { 
-                $("#myModal").css("display", "none"); 
-            } 
-        });
-        
-        // ========== 背景图双图层切换 ==========
-        (function() {
-            const API_BASE = "https://api.lqay.cn/api/zxsjt/?cat=heng";
-            const layer1 = document.getElementById('bgLayer1');
-            const layer2 = document.getElementById('bgLayer2');
-            
-            let currentLayer = layer1;
-            let nextLayer = layer2;
-            let isSwitching = false;
-            let preloadedUrl = null;
-            let intervalId = null;
-            
-            function buildUrl() {
-                return API_BASE + "&_t=" + Date.now() + "&_rand=" + Math.random().toString(36).substring(2, 10);
-            }
-            
-            function preloadNext() {
-                const url = buildUrl();
-                const img = new Image();
-                img.onload = () => { preloadedUrl = url; };
-                img.onerror = () => { preloadedUrl = null; };
-                img.src = url;
-            }
-            
-            function performSwitch() {
-                if (isSwitching) return;
-                if (!preloadedUrl) { setTimeout(performSwitch, 150); return; }
-                isSwitching = true;
-                
-                nextLayer.style.backgroundImage = `url("${preloadedUrl}")`;
-                currentLayer.classList.remove('layer-animate-out');
-                nextLayer.classList.remove('layer-animate-in');
-                void currentLayer.offsetHeight;
-                
-                currentLayer.classList.add('layer-animate-out');
-                nextLayer.classList.add('layer-animate-in');
-                nextLayer.style.opacity = '1';
-                
-                const onAnimationEnd = () => {
-                    const temp = currentLayer;
-                    currentLayer = nextLayer;
-                    nextLayer = temp;
-                    nextLayer.style.backgroundImage = '';
-                    nextLayer.style.opacity = '0';
-                    nextLayer.classList.remove('layer-animate-in', 'layer-animate-out');
-                    currentLayer.classList.remove('layer-animate-out', 'layer-animate-in');
-                    isSwitching = false;
-                    currentLayer.removeEventListener('animationend', onAnimationEnd);
-                    nextLayer.removeEventListener('animationend', onAnimationEnd);
-                };
-                
-                currentLayer.addEventListener('animationend', onAnimationEnd, { once: true });
-                preloadNext();
-            }
-            
-            const firstUrl = buildUrl();
-            const firstImg = new Image();
-            firstImg.onload = () => {
-                currentLayer.style.backgroundImage = `url("${firstUrl}")`;
-                currentLayer.style.opacity = '1';
-                nextLayer.style.opacity = '0';
-                preloadNext();
-                intervalId = setInterval(performSwitch, 5000);
-            };
-            firstImg.onerror = () => { 
-                setTimeout(() => { 
-                    const retry = buildUrl(); 
-                    new Image().onload = () => { 
-                        currentLayer.style.backgroundImage = `url("${retry}")`; 
-                        preloadNext(); 
-                        intervalId = setInterval(performSwitch, 5000); 
-                    }; 
-                    new Image().src = retry; 
-                }, 1000); 
-            };
-            firstImg.src = firstUrl;
-            
-            window.addEventListener('beforeunload', () => { if (intervalId) clearInterval(intervalId); });
-        })();
-        
-        // ========== Banner 双图层切换 - 修复图片溢出 ==========
-        (function() {
-            const API_BASE = "https://api.lqay.cn/api/zxsjt/?cat=heng";
-            const layer1 = document.getElementById('bannerLayer1');
-            const layer2 = document.getElementById('bannerLayer2');
-            const layersContainer = document.getElementById('bannerLayers');
-            
-            let currentLayer = layer1;
-            let nextLayer = layer2;
-            let isSwitching = false;
-            let preloadedUrl = null;
-            let intervalId = null;
-            let slideDirection = 'left-to-right';
-            
-            function buildUrl() {
-                return API_BASE + "&_t=" + Date.now() + "&_rand=" + Math.random().toString(36).substring(2, 10);
-            }
-            
-            function preloadNext() {
-                const url = buildUrl();
-                const img = new Image();
-                img.onload = () => { preloadedUrl = url; };
-                img.onerror = () => { preloadedUrl = null; };
-                img.src = url;
-            }
-            
-            function performSwitch() {
-                if (isSwitching) return;
-                if (!preloadedUrl) { setTimeout(performSwitch, 150); return; }
-                isSwitching = true;
-                
-                layersContainer.classList.add('banner-glow');
-                setTimeout(() => layersContainer.classList.remove('banner-glow'), 500);
-                
-                nextLayer.style.backgroundImage = `url("${preloadedUrl}")`;
-                nextLayer.style.display = 'block';
-                nextLayer.style.opacity = '1';
-                
-                if (slideDirection === 'left-to-right') {
-                    currentLayer.style.transform = 'translateX(0%)';
-                    nextLayer.style.transform = 'translateX(-100%)';
-                    currentLayer.classList.remove('banner-slide-ltr-out');
-                    nextLayer.classList.remove('banner-slide-ltr-in');
-                    void currentLayer.offsetHeight;
-                    currentLayer.classList.add('banner-slide-ltr-out');
-                    nextLayer.classList.add('banner-slide-ltr-in');
-                } else {
-                    currentLayer.style.transform = 'translateX(0%)';
-                    nextLayer.style.transform = 'translateX(100%)';
-                    currentLayer.classList.remove('banner-slide-rtl-out');
-                    nextLayer.classList.remove('banner-slide-rtl-in');
-                    void currentLayer.offsetHeight;
-                    currentLayer.classList.add('banner-slide-rtl-out');
-                    nextLayer.classList.add('banner-slide-rtl-in');
-                }
-                
-                const onAnimationEnd = () => {
-                    const temp = currentLayer;
-                    currentLayer = nextLayer;
-                    nextLayer = temp;
-                    nextLayer.style.backgroundImage = '';
-                    nextLayer.classList.remove('banner-slide-ltr-out', 'banner-slide-ltr-in', 'banner-slide-rtl-out', 'banner-slide-rtl-in');
-                    currentLayer.classList.remove('banner-slide-ltr-out', 'banner-slide-ltr-in', 'banner-slide-rtl-out', 'banner-slide-rtl-in');
-                    currentLayer.style.transform = 'translateX(0%)';
-                    currentLayer.style.opacity = '1';
-                    nextLayer.style.transform = '';
-                    nextLayer.style.opacity = '0';
-                    isSwitching = false;
-                    currentLayer.removeEventListener('animationend', onAnimationEnd);
-                    nextLayer.removeEventListener('animationend', onAnimationEnd);
-                    slideDirection = slideDirection === 'left-to-right' ? 'right-to-left' : 'left-to-right';
-                };
-                
-                currentLayer.addEventListener('animationend', onAnimationEnd, { once: true });
-                preloadNext();
-            }
-            
-            const firstUrl = buildUrl();
-            const firstImg = new Image();
-            firstImg.onload = () => {
-                currentLayer.style.backgroundImage = `url("${firstUrl}")`;
-                currentLayer.style.transform = 'translateX(0%)';
-                currentLayer.style.opacity = '1';
-                nextLayer.style.opacity = '0';
-                preloadNext();
-                intervalId = setInterval(performSwitch, 3000);
-            };
-            firstImg.onerror = () => {
-                setTimeout(() => {
-                    const retry = buildUrl();
-                    new Image().onload = () => {
-                        currentLayer.style.backgroundImage = `url("${retry}")`;
-                        preloadNext();
-                        intervalId = setInterval(performSwitch, 3000);
-                    };
-                    new Image().src = retry;
-                }, 1000);
-            };
-            firstImg.src = firstUrl;
-            
-            window.addEventListener('beforeunload', () => { if (intervalId) clearInterval(intervalId); });
-        })();
+        // ========== 站点配置：换图源、改轮播速度改这里就行 ==========
+        window.STARTPAGE_CONFIG = {
+            imageApi: "https://api.lqay.cn/api/zxsjt/?cat=heng", // 背景和 Banner 共用的随机图接口
+            background: { interval: 5000 },                      // 背景每 5 秒换一张
+            banner: { interval: 3000, fallback: "photos/bj.png" } // Banner 每 3 秒换一张；接口挂了先显示 bj.png
+        };
     </script>
+    <script src="assets/main.js"></script>
     <div id="xf-MusicPlayer" data-cdnName="https://player.xfyun.club/js" data-themeColor="xf-orange" data-songList="12785396384" data-fadeOutAutoplay></div>
     <script src="https://player.xfyun.club/js/xf-MusicPlayer/js/xf-MusicPlayer.min.js"></script>
     <script src="https://player.xfyun.club/js/yinghua.js"></script>
