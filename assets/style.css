@@ -1,538 +1,191 @@
-/* ==========================================================
-   引导页样式
-   - 颜色、阴影、动效曲线都在最上面的设计变量里，换主题色只改那几行；
-   - 暗色模式跟随系统；系统开了"减少动态效果"时只保留淡入淡出；
-   - 点击波纹、戳头像这类纯装饰效果在 effects.css，删掉不影响功能。
-   ========================================================== */
 
-/* ========== 设计变量 ========== */
-:root {
-	color-scheme: light dark;
-	--ink: #2d2733;            /* 主要文字 */
-	--ink-soft: #625a6c;       /* 次要文字：对比度 ≥ 4.5:1（原来的 #aaa 只有 2.1:1） */
-	--accent: #ee5a9b;         /* 樱花粉：选中、焦点、波纹 */
-	--accent-ink: #b8306f;     /* 粉色文字：浅色底上对比度 ≥ 4.5:1 */
-	--accent-soft: #ffe8f2;    /* 选中底色 */
-	--card: rgba(250, 247, 251, 0.88);
-	--card-solid: #f7f4f8;
-	--card-shadow: 0 18px 40px -18px rgba(120, 60, 110, 0.35);
-	--tile: #ffffff;
-	--tile-solid: #ffffff;
-	--tile-line: rgba(45, 39, 51, 0.05);
-	--tile-hover-shadow: 0 10px 24px -12px rgba(214, 72, 140, 0.45);
-	--track: rgba(255, 255, 255, 0.72);
-	--avatar-ring: #ffffff;
-	--avatar-glow: 0 10px 26px -6px rgba(214, 72, 140, 0.35);
-	--stage: linear-gradient(135deg, #fde3ef 0%, #ece8ff 55%, #e2f0ff 100%); /* 背景图出来之前 */
-	--skeleton: #f1e7f0;
-	--sheen: rgba(255, 255, 255, 0.55);
-	--backdrop: rgba(24, 14, 28, 0.45);
-	--toast-bg: rgba(45, 39, 51, 0.92);
-	--toast-ink: #ffffff;
-	--focus: 0 0 0 2px var(--accent);
-	--radius-tile: 17px;
-	--ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-	--ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
 
-@media (prefers-color-scheme: dark) {
-	:root {
-		--ink: #f3eef6;
-		--ink-soft: #cdc4d6;
-		--accent: #ff8fc0;
-		--accent-ink: #ffd1e6; /* 在粉色底块上对比度 ≥ 4.5:1 */
-		--accent-soft: rgba(255, 143, 192, 0.16);
-		--card: rgba(30, 25, 36, 0.82);
-		--card-solid: #1e1924;
-		--card-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.7);
-		--tile: rgba(255, 255, 255, 0.07);
-		--tile-solid: #2a2330;
-		--tile-line: rgba(255, 255, 255, 0.08);
-		--tile-hover-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.85);
-		--track: rgba(255, 255, 255, 0.06);
-		--avatar-ring: #2a2330;
-		--avatar-glow: 0 10px 26px -6px rgba(0, 0, 0, 0.6);
-		--stage: linear-gradient(135deg, #2b1f2e 0%, #1f1d33 55%, #172331 100%);
-		--skeleton: #342b3a;
-		--sheen: rgba(255, 255, 255, 0.08);
-		--backdrop: rgba(0, 0, 0, 0.6);
-		--toast-bg: rgba(243, 238, 246, 0.95);
-		--toast-ink: #2d2733;
-	}
-}
 
-/* ========== 页面基础 ========== */
-html {
-	touch-action: manipulation; /* 去掉双击缩放的点击延迟，双指缩放照样可用 */
-}
 
-body {
-	margin: 0;
-	padding: 0;
-	background: transparent;
-	color: var(--ink);
-}
 
-/* 卡片：半透明毛玻璃，背景图隐约透出来；进场时轻轻浮上来（整页唯一的进场动画） */
-#app {
-	background-color: var(--card);
-	color: var(--ink);
-	box-shadow: var(--card-shadow);
-	position: relative;
-	z-index: 1;
-	animation: card-rise 0.6s var(--ease-out) backwards;
-}
 
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-	#app {
-		-webkit-backdrop-filter: blur(18px) saturate(1.25);
-		backdrop-filter: blur(18px) saturate(1.25);
-	}
-}
-
-@media (prefers-reduced-transparency: reduce) {
-	#app {
-		background-color: var(--card-solid);
-		-webkit-backdrop-filter: none;
-		backdrop-filter: none;
-	}
-}
-
-@keyframes card-rise {
-	from { opacity: 0; transform: translateY(14px); }
-}
-
-/* ========== 页面背景 - 双图层系统 ========== */
-.bg-stage {
-	position: fixed;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	z-index: -1;
-	overflow: hidden;
-	background: var(--stage);
-}
-
-.bg-layer {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	background-size: cover;
-	background-position: center center;
-	background-repeat: no-repeat;
-	will-change: opacity;
-	opacity: 0;
-	z-index: 0;
-}
-
-/* 图层状态由 main.js 切换：is-active = 当前显示，is-incoming = 正在切入（始终压在最上面） */
-.bg-layer.is-active {
-	opacity: 1;
-	z-index: 1;
-}
-
-.bg-layer.is-incoming {
-	z-index: 2;
-}
-
-/* 图层里直接放预加载好的 <img>（不再二次请求同一个随机图地址），效果等同 background-size: cover */
-.bg-layer > img,
-.banner-layer > img {
-	display: block;
-	width: 100%;
-	height: 100%;
-	-o-object-fit: cover;
-	object-fit: cover;
-	-o-object-position: center;
-	object-position: center;
-	pointer-events: none;
-	-webkit-user-select: none;
-	user-select: none;
-}
-
-/* 第一张图淡入，而不是"啪"地出现 */
-.bg-layer > img.is-first,
-.banner-layer > img.is-first {
-	animation: img-fade-in 0.6s var(--ease-out);
-}
-
-@keyframes img-fade-in {
-	from { opacity: 0; }
-}
-
-/* 背景图创意动画：毛刺淡出 + 弹性淡入 */
-@keyframes bgFadeOutGlitch {
-	0% { opacity: 1; transform: scale(1) rotate(0deg); filter: blur(0px) brightness(1); }
-	25% { opacity: 0.9; transform: scale(1.02) rotate(0.5deg); filter: blur(1px) brightness(1.1); }
-	50% { opacity: 0.6; transform: scale(1.05) rotate(1deg); filter: blur(3px) brightness(1.2); }
-	100% { opacity: 0; transform: scale(1.08) rotate(2deg); filter: blur(6px) brightness(1.3); }
-}
-
-@keyframes bgFadeInElastic {
-	0% { opacity: 0; transform: scale(1.1) rotate(-2deg); filter: blur(10px) brightness(0.85); }
-	30% { opacity: 0.4; transform: scale(0.98) rotate(0.5deg); filter: blur(3px) brightness(0.95); }
-	60% { opacity: 0.8; transform: scale(1.01) rotate(-0.2deg); filter: blur(1px) brightness(1.02); }
-	100% { opacity: 1; transform: scale(1) rotate(0deg); filter: blur(0px) brightness(1); }
-}
-
-.layer-animate-out { animation: bgFadeOutGlitch 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards !important; }
-.layer-animate-in { animation: bgFadeInElastic 0.9s cubic-bezier(0.2, 0.9, 0.4, 1.1) forwards !important; }
-
-/* ========== 头部 ========== */
 .header {
 	width: 100%;
 	padding: 20px;
-	position: relative;
-	z-index: 5;
 }
 
-/* 外层容器负责定位和头像空间，overflow: visible 让头像显示 */
-.banner-container {
+
+
+.banner{
+margin-top:15px;
 	position: relative;
 	width: 100%;
 	height: 158px;
-	margin-top: 15px;
-	margin-bottom: 60px;
-	border-radius: 16px;
-	overflow: visible;
-}
-
-/* 图片层容器 - 负责裁剪和滑动动画，防止图片溢出到容器外 */
-.banner-layers {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	border-radius: 16px;
-	overflow: hidden;
-	z-index: 1;
-	background: var(--skeleton);
-}
-
-/* 第一张图出来之前的骨架闪光，代替一块空白 */
-.banner-layers.is-loading::before {
-	content: "";
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	background: linear-gradient(100deg, transparent 30%, var(--sheen) 50%, transparent 70%);
-	background-size: 220% 100%;
-	animation: shimmer 1.3s linear infinite;
-}
-
-@keyframes shimmer {
-	from { background-position: 120% 0; }
-	to { background-position: -120% 0; }
-}
-
-.banner-layer {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
+	-webkit-box-align: start;
+	-ms-flex-align: start;
+	align-items: flex-start;
+	margin-bottom: 50px;
+	background-image: url(https://api.lqay.cn/api/zxsjt/?cat=heng);
+	background-repeat: no-repeat;
 	background-size: cover;
 	background-position: 50%;
-	background-repeat: no-repeat;
-	will-change: transform, opacity;
-	opacity: 0;
-	z-index: 0;
+	padding: 20px;
+	border-radius: 16px
 }
 
-.banner-layer.is-active {
-	opacity: 1;
-	z-index: 1;
-}
-
-.banner-layer.is-incoming {
-	z-index: 2;
-}
-
-/* 图片从左往右滑动 */
-@keyframes bannerSlideLeftToRight_out {
-	0% { transform: translateX(0%); opacity: 1; }
-	100% { transform: translateX(100%); opacity: 0; }
-}
-
-@keyframes bannerSlideLeftToRight_in {
-	0% { transform: translateX(-100%); opacity: 0; }
-	100% { transform: translateX(0%); opacity: 1; }
-}
-
-/* 图片从右往左滑动 */
-@keyframes bannerSlideRightToLeft_out {
-	0% { transform: translateX(0%); opacity: 1; }
-	100% { transform: translateX(-100%); opacity: 0; }
-}
-
-@keyframes bannerSlideRightToLeft_in {
-	0% { transform: translateX(100%); opacity: 0; }
-	100% { transform: translateX(0%); opacity: 1; }
-}
-
-.banner-slide-ltr-out { animation: bannerSlideLeftToRight_out 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards !important; }
-.banner-slide-ltr-in { animation: bannerSlideLeftToRight_in 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards !important; }
-.banner-slide-rtl-out { animation: bannerSlideRightToLeft_out 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards !important; }
-.banner-slide-rtl-in { animation: bannerSlideRightToLeft_in 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards !important; }
-
-/* 光效扫过效果 */
-@keyframes bannerGlow {
-	0% { opacity: 0; transform: translateX(-100%); }
-	20% { opacity: 0.5; }
-	100% { opacity: 0; transform: translateX(100%); }
-}
-
-.banner-glow::after {
-	content: "";
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	pointer-events: none;
-	z-index: 3;
-	background: linear-gradient(90deg, transparent, rgba(255, 245, 200, 0.5), transparent);
-	animation: bannerGlow 0.5s ease-out forwards;
-	border-radius: 16px;
-}
-
-/* 头像 - 半悬停在 Banner 上，放在最上层 */
-.logo {
+ .logo {
 	position: absolute;
 	left: 50%;
 	bottom: -50px;
 	width: 100px;
 	height: 100px;
+	background-repeat: no-repeat;
+	background-size: contain;
 	margin-left: -50px;
-	border: 5px solid var(--avatar-ring);
+	border: 5px solid #fff;
 	border-radius: 50%;
-	box-shadow: var(--avatar-glow);
-	z-index: 20;
-	background-color: var(--avatar-ring);
+	box-shadow: 0 10px 20px 5px #e6e8ea
 }
-
-.logo img {
-	display: block;
+ .logo img {
 	width: 100%;
 	height: 100%;
 	border-radius: 50%;
 	-o-object-fit: cover;
-	object-fit: cover;
+	object-fit: cover
 }
 
 .author-name {
-	display: flex;
-	width: 100%;
-	justify-content: center;
+     display:flex;
+     width:100%;
+     justify-content: center;
 	align-items: center;
 	font-size: 25px;
 	line-height: 36px;
-	font-weight: 600;
-	letter-spacing: 0.04em;
-	margin-top: 55px;
-	position: relative;
-	z-index: 5;
+	font-weight: 500;
+	margin-top: 13px
+}
+.gender-icon{
+	display: inline-block;
+	width: 22px;
+	height: 22px;
+	margin: 0 10px 6px 0;
+	background-size: contain;
+	background-position: 50%;
+	background-repeat: no-repeat
+}
+.man {
+	background-image: url(data:image/png;base64,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)
 }
 
+ .female {
+	background-image: url(data:image/png;base64,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)
+}
+
+
+
+
+
+
 .desc {
-	width: 100%;
+    width: 100%
 	padding: 0 12px;
 	font-size: 14px;
 	text-align: center;
-	color: var(--ink-soft);
+	color: #aaa;
 	line-height: 20px;
-	margin-top: 4px;
-	position: relative;
-	z-index: 5;
+	margin-top: 4px
 }
 
-.body {
-	position: relative;
-	z-index: 5;
+
+ .tab-list {
+
+	width: 100%;
+	padding: 0 20px;
+	-webkit-box-pack: start;
+	-ms-flex-pack: start;
+	justify-content: flex-start
 }
 
-/* ========== 标签：分段选择器，粉色底块滑到选中的那一边 ========== */
-.tab-list {
-	position: relative;
-	display: -webkit-box;
-	display: -ms-flexbox;
-	display: flex;
-	margin: 0 20px;
-	padding: 4px;
-	border-radius: 20px;
-	background: var(--track);
-	box-shadow: inset 0 0 0 1px var(--tile-line);
-}
-
-/* --tab-index / --tab-count 由 main.js 写在 .tab-list 上 */
-.tab-indicator {
-	position: absolute;
-	top: 4px;
-	bottom: 4px;
-	left: 4px;
-	width: calc((100% - 8px) / var(--tab-count, 2));
-	border-radius: 16px;
-	background: var(--accent-soft);
-	box-shadow: 0 3px 10px -4px rgba(214, 72, 140, 0.45);
-	transform: translateX(calc(100% * var(--tab-index, 0)));
-	transition: transform 0.38s var(--ease-spring);
-}
-
-.tab-item {
-	position: relative;
-	z-index: 1;
-	overflow: hidden;
-	-webkit-box-flex: 1;
-	-ms-flex: 1 1 0px;
-	flex: 1 1 0;
+ .tab-item, .tab-list {
 	display: -webkit-box;
 	display: -ms-flexbox;
 	display: flex;
 	-webkit-box-align: center;
 	-ms-flex-align: center;
-	align-items: center;
+	align-items: center
+}
+ .tab-item {
 	-webkit-box-pack: center;
 	-ms-flex-pack: center;
 	justify-content: center;
 	height: 35px;
 	padding: 0 12px;
-	border-radius: 16px;
+	width:34%;
+	background: #fff;
+	border-radius: 17px;
 	font-size: 14px;
 	line-height: 20px;
-	color: var(--ink-soft);
-	cursor: pointer;
-	-webkit-user-select: none;
-	user-select: none;
-	-webkit-tap-highlight-color: transparent;
-	transition: color 0.2s, transform 0.15s var(--ease-out);
+	margin-right: 10px
 }
-
-.tab-item.active {
-	color: var(--accent-ink);
-	font-weight: 600;
+ 
+ .tab-item .text {
+	margin-left: 6px
 }
-
-.tab-item:active {
-	transform: scale(0.96);
-}
-
-.tab-item:focus-visible {
-	outline: none;
-	box-shadow: var(--focus);
-}
-
-.tab-item .text {
-	margin-left: 6px;
-}
-
-/* 图标用遮罩画成"当前文字颜色"：选中时变粉、暗色模式下自动变浅 */
-.tab-item:before {
+ .tab-item:before {
 	content: "";
 	display: inline-block;
 	width: 16px;
 	height: 16px;
-	background-color: currentColor;
-	-webkit-mask-position: center;
-	mask-position: center;
-	-webkit-mask-size: contain;
-	mask-size: contain;
-	-webkit-mask-repeat: no-repeat;
-	mask-repeat: no-repeat;
+	background-size: contain;
+	background-position: 50%;
+	background-repeat: no-repeat
 }
 
-/* 相对本 CSS 文件解析，网站放在子目录里也能找到图标 */
 .lx:before {
-	-webkit-mask-image: url(lx.png);
-	mask-image: url(lx.png);
+
+	background-image: url(../assets/lx.png)
+}
+
+.dh:before {
+	background-image: url(../assets/dh.png)
 }
 
 .zy:before {
-	-webkit-mask-image: url(zy.png);
-	mask-image: url(zy.png);
+	background-image: url(../assets/zy.png)
 }
 
-/* ========== 应用列表 ========== */
-/* 背景透明，跟随 #app 的半透明底色；原来的不透明 #f4f6f8 会和上半部分形成一块色差 */
+
 .app-list {
 	width: 100%;
-	background: transparent;
+	background: #f4f6f8;
 	padding: 12px;
 	-ms-flex-wrap: wrap;
-	flex-wrap: wrap;
+	flex-wrap: wrap
+}
+.item,
+.app-list{
+	-webkit-box-sizing: border-box;
+	box-sizing: border-box;
 	display: -webkit-box;
 	display: -ms-flexbox;
 	display: flex;
-	-webkit-box-sizing: border-box;
-	box-sizing: border-box;
 	-webkit-box-pack: start;
 	-ms-flex-pack: start;
 	justify-content: flex-start;
 	-webkit-box-align: center;
 	-ms-flex-align: center;
-	align-items: center;
+	align-items: center
 }
 
-/* 未选中的面板（hidden 属性）；不写这条的话上面的 display:flex 会盖过浏览器默认的隐藏 */
-.app-list[hidden] {
-	display: none;
-}
-
-/* 切换标签时，新面板轻轻淡入，表示内容换了 */
-.app-list.is-entering {
-	animation: panel-in 0.28s var(--ease-out);
-}
-
-@keyframes panel-in {
-	from { opacity: 0; transform: translateY(6px); }
-}
-
-.item {
+.item{
 	width: 50%;
-	padding: 8px;
-	position: relative;
-	color: var(--ink);
-	display: -webkit-box;
-	display: -ms-flexbox;
-	display: flex;
 	-webkit-box-orient: vertical;
 	-webkit-box-direction: normal;
 	-ms-flex-direction: column;
 	flex-direction: column;
-	-webkit-box-pack: start;
-	-ms-flex-pack: start;
-	justify-content: flex-start;
-	-webkit-box-align: center;
-	-ms-flex-align: center;
-	align-items: center;
-	text-decoration: none;
-	cursor: pointer;
-	-webkit-box-sizing: border-box;
-	box-sizing: border-box;
-	-webkit-tap-highlight-color: transparent;
-}
-
-/* 盖过 m.css 里 a:hover / a:active 的蓝色，卡片文字保持不变 */
-.item:hover,
-.item:active,
-.item:focus {
-	color: var(--ink);
-}
-
-.item:focus-visible {
-	outline: none;
-}
-
-.content-wrap {
+	padding: 8px;
 	position: relative;
-	overflow: hidden; /* 裁剪点击波纹 */
+	color: #222
+}
+
+ .content-wrap {
 	width: 100%;
-	background: var(--tile);
+	background: #fff;
 	display: -webkit-box;
 	display: -ms-flexbox;
 	display: flex;
@@ -543,411 +196,42 @@ body {
 	-ms-flex-align: center;
 	align-items: center;
 	padding: 14px 16px;
-	border-radius: var(--radius-tile);
-	box-shadow: inset 0 0 0 1px var(--tile-line);
-	transition: transform 0.22s var(--ease-out), box-shadow 0.25s;
+	border-radius: 17px
 }
 
-/* 悬停：轻轻抬起；只在真正能悬停的设备上，手机点完不会一直"浮着" */
-@media (hover: hover) {
-	.item:hover .content-wrap {
-		transform: translateY(-2px);
-		box-shadow: var(--tile-hover-shadow), inset 0 0 0 1px var(--tile-line);
-	}
-}
-
-/* 按下：往下沉一点，松手弹回 —— 每次点击都有即时反馈 */
-.item:active .content-wrap {
-	transform: scale(0.97);
-	transition-duration: 0.08s;
-}
-
-/* 按的是卡片里的"复制群号"时，整张卡片不跟着沉 */
-.item:has(.copy-chip:active) .content-wrap {
-	transform: none;
-}
-
-.item:focus-visible .content-wrap {
-	box-shadow: var(--focus);
-}
-
-.img-wrap {
+ .img-wrap{
 	-ms-flex-negative: 0;
 	flex-shrink: 0;
 	width: 45px;
 	height: 45px;
-	margin-right: 10px;
+	margin-right: 10px
 }
 
-.img-wrap img {
+ .item:hover{
+    width: 48%;
+    transform: scale(1.5);
+}
+
+
+
+ .img-wrap img{
 	width: 100%;
 	height: 100%;
 	-o-object-fit: contain;
 	object-fit: contain;
-	border-radius: 12px;
+	border-radius: 12px
 }
 
-/* 窄屏手机：卡片内边距和图标稍微收一点，一行能放下 6 个字（"短网址生成器"不再单独掉一个字） */
-@media (max-width: 420px) {
-	.content-wrap {
-		padding: 12px;
-	}
-
-	.img-wrap {
-		width: 42px;
-		height: 42px;
-		margin-right: 9px;
-	}
-}
-
-/* 图标加载失败时，main.js 用名称的第一个字代替 */
-.img-fallback {
-	display: -webkit-box;
-	display: -ms-flexbox;
-	display: flex;
-	-webkit-box-align: center;
-	-ms-flex-align: center;
-	align-items: center;
-	-webkit-box-pack: center;
-	-ms-flex-pack: center;
-	justify-content: center;
-	width: 100%;
-	height: 100%;
-	border-radius: 12px;
-	background: var(--accent-soft);
-	color: var(--accent-ink);
-	font-size: 19px;
-	font-weight: 600;
-}
-
-.app-name {
+.app-name{
 	font-size: 15px;
 	line-height: 20px;
 	width: 100%;
-	word-break: normal; /* 原来的 break-all 会把 "API(99%)" 拆成 "API(9" / "9%)" */
-	overflow-wrap: anywhere; /* 特别长的英文仍然能换行，不会撑破卡片 */
-	text-wrap: pretty; /* 尽量不让最后一行只剩一个字 */
+	word-break: break-all;
 	text-overflow: ellipsis;
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 2;
 	overflow: hidden;
 	font-family: PingFang SC;
-	font-weight: 500;
-}
-
-.app-sub {
-	font-size: 11px;
-	color: var(--ink-soft);
-	margin-top: 2px;
-}
-
-/* 带第二个操作的卡片：链接铺满整张卡片，按钮浮在它上面 */
-.item-text {
-	-webkit-box-flex: 1;
-	-ms-flex: 1 1 auto;
-	flex: 1 1 auto;
-	min-width: 0;
-	display: -webkit-box;
-	display: -ms-flexbox;
-	display: flex;
-	-webkit-box-orient: vertical;
-	-webkit-box-direction: normal;
-	-ms-flex-direction: column;
-	flex-direction: column;
-	-webkit-box-align: start;
-	-ms-flex-align: start;
-	align-items: flex-start;
-}
-
-.stretched-link,
-.stretched-link:hover,
-.stretched-link:active {
-	color: inherit;
-}
-
-.stretched-link::after {
-	content: "";
-	position: absolute;
-	top: 0;
-	right: 0;
-	bottom: 0;
-	left: 0;
-	z-index: 1;
-	border-radius: var(--radius-tile);
-}
-
-.stretched-link:focus-visible {
-	outline: none;
-}
-
-.stretched-link:focus-visible::after {
-	box-shadow: var(--focus);
-}
-
-.copy-chip {
-	position: relative;
-	z-index: 2;
-	display: -webkit-inline-box;
-	display: -ms-inline-flexbox;
-	display: inline-flex;
-	-webkit-box-align: center;
-	-ms-flex-align: center;
-	align-items: center;
-	margin: 0 0 0 -6px;
-	padding: 1px 6px;
-	border: 0;
-	border-radius: 8px;
-	background: none;
-	color: var(--ink-soft);
-	font: inherit;
-	line-height: 16px;
-	cursor: pointer;
-	-webkit-tap-highlight-color: transparent;
-	transition: background-color 0.2s, color 0.2s, transform 0.12s var(--ease-out);
-}
-
-.copy-chip .app-sub {
-	margin-top: 0;
-	color: inherit;
-}
-
-.copy-chip .copy-icon {
-	width: 12px;
-	height: 12px;
-	margin-left: 4px;
-	fill: none;
-	stroke: currentColor;
-	stroke-width: 1.4;
-	stroke-linecap: round;
-	stroke-linejoin: round;
-}
-
-.copy-chip:hover,
-.copy-chip.is-copied {
-	background: var(--accent-soft);
-	color: var(--accent-ink);
-}
-
-.copy-chip:active {
-	transform: scale(0.94);
-}
-
-.copy-chip:focus-visible {
-	outline: none;
-	box-shadow: var(--focus);
-}
-
-/* ========== 二维码弹窗 ==========
-   用原生 <dialog>：showModal() 打开后渲染在浏览器"顶层"，不会被音乐播放器
-   （z-index: 2147483647）之类的悬浮组件挡住；Esc 关闭、焦点管理都是浏览器自带的。 */
-.modal {
-	width: 80%;
-	max-width: 400px;
-	padding: 18px 20px 20px;
-	border: 0;
-	border-radius: 20px;
-	background: var(--tile-solid);
-	color: var(--ink);
-	box-shadow: 0 24px 60px -20px rgba(40, 10, 40, 0.5);
-	overflow: visible;
-}
-
-.modal[open] {
-	animation: dialog-in 0.32s var(--ease-spring);
-}
-
-.modal[open]::backdrop {
-	animation: fade-in 0.25s ease-out;
-}
-
-.modal::backdrop {
-	background: var(--backdrop);
-	-webkit-backdrop-filter: blur(3px);
-	backdrop-filter: blur(3px);
-}
-
-/* 关闭时先播完这段再真正关掉（main.js 控制） */
-.modal.is-closing {
-	animation: dialog-out 0.18s ease-in forwards;
-}
-
-.modal.is-closing::backdrop {
-	animation: fade-out 0.18s ease-in forwards;
-}
-
-@keyframes dialog-in {
-	from { opacity: 0; transform: translateY(14px) scale(0.94); }
-}
-
-@keyframes dialog-out {
-	to { opacity: 0; transform: translateY(8px) scale(0.97); }
-}
-
-@keyframes fade-in {
-	from { opacity: 0; }
-}
-
-@keyframes fade-out {
-	to { opacity: 0; }
-}
-
-.modal-title {
-	margin: 0 36px 14px 0;
-	font-size: 16px;
-	font-weight: 600;
-	line-height: 24px;
-}
-
-/* 二维码始终放在白底上，暗色模式下也能扫 */
-.modal-qr {
-	padding: 10px;
-	border-radius: 14px;
-	background: #ffffff;
-}
-
-.modal img {
-	display: block;
-	width: 100%;
-	height: auto;
-}
-
-.modal .close {
-	position: absolute;
-	top: 10px;
-	right: 12px;
-	width: 32px;
-	height: 32px;
-	padding: 0;
-	border: 0;
-	border-radius: 50%;
-	background: none;
-	color: var(--ink-soft);
-	font-size: 24px;
-	line-height: 32px;
-	cursor: pointer;
-	transition: background-color 0.2s, color 0.2s, transform 0.12s var(--ease-out);
-}
-
-.modal .close:hover,
-.modal .close:focus-visible {
-	outline: none;
-	background: var(--accent-soft);
-	color: var(--accent-ink);
-}
-
-.modal .close:active {
-	transform: scale(0.9);
-}
-
-.modal-save {
-	display: block;
-	margin-top: 14px;
-	padding: 10px 0;
-	border-radius: 12px;
-	background: var(--accent-soft);
-	color: var(--accent-ink);
-	font-size: 14px;
-	font-weight: 600;
-	text-align: center;
-	transition: transform 0.12s var(--ease-out);
-}
-
-.modal-save:hover,
-.modal-save:active {
-	color: var(--accent-ink);
-}
-
-.modal-save:active {
-	transform: scale(0.98);
-}
-
-.modal-save:focus-visible {
-	outline: none;
-	box-shadow: var(--focus);
-}
-
-/* ========== 底部提示（复制成功等） ========== */
-.toast {
-	position: fixed;
-	left: 50%;
-	bottom: calc(28px + env(safe-area-inset-bottom, 0px));
-	z-index: 2147483647;
-	max-width: calc(100% - 48px);
-	padding: 10px 18px;
-	border-radius: 999px;
-	background: var(--toast-bg);
-	color: var(--toast-ink);
-	font-size: 14px;
-	line-height: 20px;
-	text-align: center;
-	box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.45);
-	opacity: 0;
-	transform: translate(-50%, 16px);
-	pointer-events: none;
-	transition: opacity 0.2s, transform 0.3s var(--ease-spring);
-}
-
-.toast.is-visible {
-	opacity: 1;
-	transform: translate(-50%, 0);
-}
-
-/* ========== 系统开了"减少动态效果"：只保留短淡入淡出，樱花不飘 ========== */
-@keyframes layer-fade-out {
-	to { opacity: 0; }
-}
-
-@keyframes layer-fade-in {
-	from { opacity: 0; }
-	to { opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.layer-animate-out,
-	.banner-slide-ltr-out,
-	.banner-slide-rtl-out {
-		animation: layer-fade-out 0.35s linear forwards !important;
-	}
-
-	.layer-animate-in,
-	.banner-slide-ltr-in,
-	.banner-slide-rtl-in {
-		animation: layer-fade-in 0.35s linear forwards !important;
-	}
-
-	.banner-glow::after {
-		content: none;
-	}
-
-	#app,
-	.app-list.is-entering,
-	.banner-layers.is-loading::before {
-		animation: none;
-	}
-
-	.modal[open],
-	.modal[open]::backdrop,
-	.modal.is-closing,
-	.modal.is-closing::backdrop {
-		animation-duration: 0.01ms;
-	}
-
-	.tab-indicator,
-	.content-wrap,
-	.tab-item,
-	.toast {
-		transition-duration: 0.01ms;
-	}
-
-	@media (hover: hover) {
-		.item:hover .content-wrap {
-			transform: none;
-		}
-	}
-
-	/* 第三方樱花特效常用的画布 id；没有这个元素时这条规则不起作用 */
-	#canvas_sakura {
-		display: none !important;
-	}
+	font-weight: 500
 }
