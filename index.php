@@ -16,10 +16,12 @@
     <!-- 提前和图片接口、图标 CDN 建立连接，第一张图更快出来；改了 imageApi 的域名记得同步改这里 -->
     <link rel="preconnect" href="https://api.lqay.cn">
     <link rel="preconnect" href="https://cdn.jsdmirror.com">
-    <link href="assets/m.css" rel="stylesheet">
-    <link rel="stylesheet" type="text/css" href="assets/style.css">
+    <!-- 本地 css / js 后面的 ?v= 是版本号：改了这些文件后把数字加 1，浏览器和服务器缓存就会换成新文件，
+         不会出现"新页面 + 旧样式表"导致的错乱（比如背景图按原图尺寸把页面撑大） -->
+    <link href="assets/m.css?v=2" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="assets/style.css?v=2">
     <!-- 装饰性点击反馈，不需要可以和底部的 effects.js 一起删掉 -->
-    <link rel="stylesheet" href="assets/effects.css">
+    <link rel="stylesheet" href="assets/effects.css?v=2">
     <!-- 浏览器禁用 JS 时：两个列表都显示，联系方式不会被藏起来；Banner 不显示加载动画 -->
     <noscript><style>.app-list[hidden] { display: flex; } .banner-layers.is-loading::before { animation: none; }</style></noscript>
 </head>
@@ -123,8 +125,8 @@
             }
         };
     </script>
-    <script src="assets/main.js"></script>
-    <script src="assets/effects.js"></script>
+    <script src="assets/main.js?v=2"></script>
+    <script src="assets/effects.js?v=2"></script>
     <div id="xf-MusicPlayer" data-cdnName="https://player.xfyun.club/js" data-themeColor="xf-orange" data-songList="12785396384" data-fadeOutAutoplay></div>
     <script src="https://player.xfyun.club/js/xf-MusicPlayer/js/xf-MusicPlayer.min.js"></script>
     <script src="https://player.xfyun.club/js/yinghua.js"></script>

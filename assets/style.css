@@ -7,6 +7,8 @@
 
 /* ========== 设计变量 ========== */
 :root {
+	/* 样式表版本：main.js 会核对，对不上说明用的是旧缓存（改了 index.php 结构时和 main.js 里的 CSS_VERSION 一起改） */
+	--startpage-css-version: "2";
 	color-scheme: light dark;
 	--ink: #2d2733;            /* 主要文字 */
 	--ink-soft: #625a6c;       /* 次要文字：对比度 ≥ 4.5:1（原来的 #aaa 只有 2.1:1） */
@@ -138,24 +140,9 @@ body {
 	z-index: 2;
 }
 
-/* 图层里直接放预加载好的 <img>（不再二次请求同一个随机图地址），效果等同 background-size: cover */
-.bg-layer > img,
-.banner-layer > img {
-	display: block;
-	width: 100%;
-	height: 100%;
-	-o-object-fit: cover;
-	object-fit: cover;
-	-o-object-position: center;
-	object-position: center;
-	pointer-events: none;
-	-webkit-user-select: none;
-	user-select: none;
-}
-
-/* 第一张图淡入，而不是"啪"地出现 */
-.bg-layer > img.is-first,
-.banner-layer > img.is-first {
+/* 第一张图淡入，而不是"啪"地出现（图片画在图层的 CSS 背景上，main.js 加 is-first） */
+.bg-layer.is-active.is-first,
+.banner-layer.is-active.is-first {
 	animation: img-fade-in 0.6s var(--ease-out);
 }
 

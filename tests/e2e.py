@@ -8,12 +8,13 @@
     pip install playwright
     python -m playwright install chromium     # 或者设置 CHROME_PATH 使用本机的 Chrome
 运行：
-    python tests/e2e.py                 # 全部用例，约 1 分钟
+    python tests/e2e.py                 # 全部用例，约 3 分钟
     python tests/e2e.py dialog copy     # 只跑名字里带这些词的用例
 全部通过退出码为 0，否则为 1。tests/ 目录不需要上传到网站。
 """
 import asyncio
 import os
+import re
 import struct
 import sys
 import time
@@ -47,13 +48,14 @@ def png(rgb, w=64, h=36):
 
 
 ICON = png((231, 76, 60), 8, 8)
+HUGE = png((120, 90, 200), 3840, 2160)  # 和真实壁纸一样大的 4K 图
 
 
 class FakeImageApi:
     """随机图接口替身：每次请求返回一张新颜色的图。fail(i, t) 决定第 i 个请求是否失败。"""
 
-    def __init__(self, latency=0.3, fail=None):
-        self.latency, self.fail = latency, fail or (lambda i, t: False)
+    def __init__(self, latency=0.3, fail=None, body=None):
+        self.latency, self.fail, self.body = latency, fail or (lambda i, t: False), body
         self.t0 = time.monotonic()
         self.n = 0
         self.log = []  # (开始时间, 结束时间, url, 状态码)
@@ -70,7 +72,8 @@ class FakeImageApi:
             if failed:
                 await route.fulfill(status=502, body="bad gateway")
             else:
-                await route.fulfill(status=200, content_type="image/png", body=png(((i * 67) % 256, (i * 151) % 256, (i * 29) % 256)))
+                await route.fulfill(status=200, content_type="image/png",
+                                    body=self.body or png(((i * 67) % 256, (i * 151) % 256, (i * 29) % 256)))
         except Exception:
             return  # 页面已经关了
         self.log.append((start, self.now(), route.request.url, 502 if failed else 200))
@@ -136,7 +139,7 @@ class Session:
                          reduced_motion=reduced_motion, java_script_enabled=js, permissions=list(permissions))
         self.blocked, self.html_patch, self.icon_status = set(blocked), html_patch, icon_status
         self.init_scripts = [PROBE, *init_scripts]
-        self.errors, self.missing, self.hosts = [], [], set()
+        self.errors, self.missing, self.hosts, self.console = [], [], set(), []
 
     async def route(self, route):
         url = urlparse(route.request.url)
@@ -179,6 +182,7 @@ class Session:
         await self.ctx.route("**/*", self.route)
         self.page = await self.ctx.new_page()
         self.page.on("pageerror", lambda e: self.errors.append(str(e)))
+        self.page.on("console", lambda m: self.console.append(m.text))
         await self.page.goto(f"{self.origin}{self.base}/", wait_until="domcontentloaded")
         return self
 
@@ -211,9 +215,10 @@ class Session:
 
 
 def config_patch(addition):
-    """在页面配置后面追加几行（只影响测试，不改仓库文件）。"""
+    """在页面配置后面、main.js 前面插入几行脚本（只影响测试，不改仓库文件）。"""
     def patch(html):
-        marker = '<script src="assets/main.js"></script>'
+        marker = '<script src="assets/main.js'
+        assert marker in html, "index.php 里找不到 main.js 的 <script>"
         return html.replace(marker, f"<script>{addition}</script>\n    {marker}", 1)
     return patch
 
@@ -237,6 +242,51 @@ async def static_files(browser, check):
     check("user-scalable=no" not in page, "不应该禁止双指缩放")
     readme = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
     check(readme.count("```") % 2 == 0, "README 的代码块围栏应该成对")
+    # 本地 css / js 都要带 ?v= 版本号，部署后浏览器 / 服务器缓存才会换成新文件
+    local = re.findall(r'(?:href|src)="(assets/[^"]+\.(?:css|js)[^"]*)"', page)
+    check(local and all("?v=" in u for u in local), f"本地 css / js 链接都要带版本号：{local}")
+    css = open(os.path.join(ROOT, "assets/style.css"), encoding="utf-8").read()
+    js = open(os.path.join(ROOT, "assets/main.js"), encoding="utf-8").read()
+    css_v = re.search(r'--startpage-css-version:\s*"([^"]+)"', css)
+    js_v = re.search(r"const CSS_VERSION = '([^']+)'", js)
+    check(css_v and js_v and css_v.group(1) == js_v.group(1), "style.css 和 main.js 里的样式表版本号要一致")
+
+
+# 背景层已经显示出图片（不管图片是画成 CSS 背景还是放了 <img>）
+BG_SHOWN = """(() => { const l = document.getElementById('bgLayer1'), i = l.querySelector('img');
+  return l.style.backgroundImage !== '' || Boolean(i && i.complete && i.naturalWidth > 0); })()"""
+# 每个轮播图层里最大的盒子（图层本身或里面的任何元素）的宽高
+LAYER_BOXES = """['bgLayer1', 'bgLayer2', 'bannerLayer1', 'bannerLayer2'].map(id => {
+  const el = document.getElementById(id), rs = [el, ...el.querySelectorAll('*')].map(e => e.getBoundingClientRect());
+  return [id, Math.round(Math.max(...rs.map(r => r.width))), Math.round(Math.max(...rs.map(r => r.height)))]; })"""
+
+
+@case
+async def huge_wallpaper_keeps_page_size(browser, check):
+    # 真实壁纸是 4K 大图：显示后页面不能变大、不能横向滑动，背景正好铺满屏幕
+    for viewport in ((390, 844), (1280, 800)):
+        async with Session(browser, FakeImageApi(latency=0.2, body=HUGE), viewport=viewport) as s:
+            await s.page.wait_for_function(BG_SHOWN, timeout=15000)
+            await asyncio.sleep(0.8)
+            m = await s.ev("""(() => { const d = document.documentElement, r = document.getElementById('bgLayer1').getBoundingClientRect();
+              return { sw: d.scrollWidth, iw: innerWidth, ih: innerHeight, lw: r.width, lh: r.height }; })()""")
+            boxes = await s.ev(LAYER_BOXES)
+            check(m["sw"] <= m["iw"], f"{viewport}：页面不应出现横向滚动（{m['sw']} > {m['iw']}）")
+            check(round(m["lw"]) == m["iw"] and round(m["lh"]) == m["ih"], f"{viewport}：背景层应正好铺满屏幕：{m}")
+            check(all(w <= m["iw"] and h <= m["ih"] for _, w, h in boxes), f"{viewport}：图层里不应有超出屏幕的图片：{boxes}")
+
+
+@case
+async def missing_stylesheet_cannot_blow_up_page(browser, check):
+    # 样式表没加载到，或者浏览器 / 服务器还在用旧版 style.css（同样没有新图层的样式）时，
+    # 大图也不能按原图尺寸把页面撑大、变得可以滑动；控制台要说明原因
+    async with Session(browser, FakeImageApi(latency=0.2, body=HUGE), viewport=(390, 844), blocked={"/assets/style.css"}) as s:
+        await s.page.wait_for_function(BG_SHOWN, timeout=15000)
+        await asyncio.sleep(0.8)
+        boxes = await s.ev(LAYER_BOXES)
+        vw = await s.ev("innerWidth")
+        check(all(w <= vw and h < 400 for _, w, h in boxes), f"图层不应按原图尺寸展开：{boxes}")
+        check(any("样式表版本不对" in c for c in s.console), "控制台应提示样式表不是当前版本")
 
 
 @case
