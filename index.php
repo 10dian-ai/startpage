@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<? ob_start();?>
 <html lang="zh-CN">
 <head>
     <meta charset="utf-8">
@@ -29,7 +28,7 @@
                     <div class="banner-layer banner-next" id="bannerLayer2"></div>
                 </div>
                 <div class="logo">
-                    <img src="/photos/TX.jpg" alt="">
+                    <img src="photos/TX.jpg" alt="">
                 </div>
             </div>
             <div class="author-name">引导页</div>
@@ -66,16 +65,16 @@
             </div>
             <!-- 应用列表2 - 联系 -->
             <div class="app-list a2">
-                <a href="javascript:void(0);" class="item" onclick="showModal('/photos/QQ.jpg')">
+                <a href="javascript:void(0);" class="item" onclick="showModal('photos/QQ.jpg')">
                     <div class="content-wrap">
-                        <div class="img-wrap"><img src="/photos/QQ图标.png" alt=""></div>
+                        <div class="img-wrap"><img src="photos/QQ图标.png" alt=""></div>
                         <p class="app-name">我的QQ</p>
                     </div>
                 </a>
                 <!-- QQ群 - 图标改成和QQ一样的图片结构 -->
                 <a href="https://qm.qq.com/q/RtC6VXxpCu" class="item" target="_blank">
                     <div class="content-wrap">
-                        <div class="img-wrap"><img src="/photos/QQ图标.png" alt="QQ群"></div>
+                        <div class="img-wrap"><img src="photos/QQ图标.png" alt="QQ群"></div>
                         <div>
                             <p class="app-name">流欺交流群</p>
                             <span class="app-sub">950348367</span>
