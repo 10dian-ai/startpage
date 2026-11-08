@@ -50,6 +50,14 @@
 
 页面里没有 PHP 代码，不支持 PHP 的静态托管（GitHub Pages、Nginx 纯静态等）把 `index.php` 改名为 `index.html` 即可。
 
+### 更新网站后页面错乱？（缓存）
+
+`index.php` 里本地 css / js 的链接后面带着版本号，比如 `assets/style.css?v=2`。改了 `assets/` 里的 css 或 js 之后，把这些 `?v=` 的数字加 1，浏览器和服务器就会下载新文件，不会出现"新页面配旧样式表"的错乱。
+
+- 网站开了 CDN，并且 CDN 设置了"忽略 / 过滤 URL 参数"时，版本号不起作用，需要在 CDN 后台刷新一次 `assets/` 目录的缓存。
+- 样式表和页面对不上时，浏览器控制台会提示"样式表版本不对"。改了页面结构（`index.php` 里的类名、图层等）时，把 `style.css` 开头的 `--startpage-css-version` 和 `main.js` 里的 `CSS_VERSION` 一起加 1。
+- 背景和 Banner 图片画在图层的 CSS 背景上，样式表就算是旧的，也不会按原图尺寸把页面撑大。
+
 ## ⚙️ 配置说明
 
 ### 修改个人信息
@@ -185,12 +193,12 @@ window.STARTPAGE_CONFIG = {
 
 ## 🧪 测试
 
-`tests/e2e.py` 用无头浏览器检查轮播、弹窗、复制、键盘操作、暗色模式等 22 项行为。不需要 PHP 或服务器，也不访问外网（接口和 CDN 都换成了可控的假数据）。
+`tests/e2e.py` 用无头浏览器检查轮播、大尺寸壁纸、弹窗、复制、键盘操作、暗色模式等 24 项行为。不需要 PHP 或服务器，也不访问外网（接口和 CDN 都换成了可控的假数据）。
 
 ```bash
 pip install playwright
 python -m playwright install chromium
-python tests/e2e.py            # 全部用例，约 1 分钟
+python tests/e2e.py            # 全部用例，约 3 分钟
 python tests/e2e.py dialog     # 只跑名字里带 dialog 的用例
 ```
 

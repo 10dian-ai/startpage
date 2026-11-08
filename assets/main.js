@@ -23,6 +23,8 @@
 		maxRetryDelay: 30000, // 重试间隔上限
 	};
 	const MIN_INTERVAL = 1500; // 防呆：轮播间隔至少要比切换动画长
+	// 和 style.css 开头的 --startpage-css-version 对应。对不上 = 浏览器或服务器还在用旧的样式表缓存
+	const CSS_VERSION = '2';
 
 	const DEBUG = /[?&]debug\b/.test(location.search);
 	const log = {
@@ -93,9 +95,10 @@
 		return img;
 	}
 
-	// 预加载一张图片，成功后返回这个 <img> 元素本身，由图层直接显示它。
-	// 原来是预加载完再把"同一个网址"设成 CSS 背景，靠浏览器缓存复用；随机图接口如果
-	// 不允许缓存或者用 302 跳转，第二次请求可能重新下载、甚至换成另一张图，切换动画时就会空白。
+	// 预加载一张图片，成功后返回这个 Image 对象。
+	// 图层用 CSS 背景显示它（background-image 永远不会影响页面布局，哪怕样式表是旧的缓存版本，
+	// 也不会像 <img> 那样按原图尺寸把页面撑大）；轮播会一直持有这个对象直到图层清空，
+	// 让浏览器从内存里复用这张图，不会再下载一次。
 	function loadImage(url, timeout) {
 		return new Promise((resolve, reject) => {
 			const img = createImg();
@@ -187,7 +190,7 @@
 	/**
 	 * 背景和 Banner 共用的轮播逻辑（原来是两份几乎一样的代码，bug 也是两份）。
 	 *
-	 * - 直接显示预加载好的 <img>，不再对随机图地址发第二次请求；
+	 * - 图片画成图层的 CSS 背景：不管样式表新旧，都不会撑大页面；
 	 * - 预加载的图片"取用即清空"：不会因为下一张还没下载完就把当前这张再切一遍；
 	 * - 同一时间最多一个预加载请求：网速慢时不会越积越多；
 	 * - 用 setTimeout 链代替 setInterval + 150ms 轮询：接口出错时不会无限叠加定时器；
@@ -208,9 +211,17 @@
 		const paused = () => pauses.size > 0;
 		const resting = () => shown && (paused() || !rotate); // 已经有图了，而且现在不该继续换
 
+		// 正在显示的图片对象：持有它，浏览器就会从内存里复用这张图，不会再请求一次随机图地址
+		const held = new Map();
+
 		const paint = (el, img) => {
-			if (img) el.replaceChildren(img);
-			else el.replaceChildren();
+			if (img) {
+				held.set(el, img);
+				el.style.backgroundImage = `url("${img.src}")`;
+			} else {
+				held.delete(el);
+				el.style.backgroundImage = '';
+			}
 		};
 
 		function firstShown() {
@@ -236,11 +247,12 @@
 
 		async function show(img) {
 			if (!shown) { // 第一张直接淡入，不播放切换动画
-				img.classList.add('is-first');
+				front.classList.add('is-first');
 				paint(front, img);
 				firstShown();
 				return;
 			}
+			front.classList.remove('is-first'); // 第一次淡入只播一次
 			paint(back, img);
 			back.classList.add('is-incoming');
 			await transition.run(front, back);
@@ -278,9 +290,8 @@
 				if (failures === 1) log.warn(msg); else log.debug(msg);
 				if (!shown && fallback) {
 					log.info(`${name}：先显示兜底图 ${fallback}`);
-					const img = createImg(fallback);
-					img.classList.add('is-first');
-					paint(front, img);
+					front.classList.add('is-first');
+					paint(front, createImg(fallback));
 					firstShown();
 				}
 			} finally {
@@ -563,7 +574,18 @@
 
 	/* ======================= 启动 ======================= */
 
+	// 新的 HTML / 脚本配上旧的 style.css（服务器或浏览器缓存）会让页面错乱，这里在控制台直接点明原因
+	function checkStylesheet() {
+		const found = getComputedStyle(document.documentElement)
+			.getPropertyValue('--startpage-css-version').trim().replace(/["']/g, '');
+		if (found !== CSS_VERSION) {
+			log.warn(`样式表版本不对（需要 ${CSS_VERSION}，实际 ${found || '没有加载到'}）：浏览器或服务器可能还在用旧的 style.css 缓存。`
+				+ '请强制刷新页面；如果是服务器缓存，把 index.php 里 css / js 链接后面的 ?v= 版本号改一下。');
+		}
+	}
+
 	function init() {
+		checkStylesheet();
 		const cfg = readConfig();
 		// iOS Safari 只有页面监听了 touchstart 才会显示 :active 按下效果
 		document.addEventListener('touchstart', () => {}, { passive: true });
