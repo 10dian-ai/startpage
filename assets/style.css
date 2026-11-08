@@ -37,16 +37,33 @@ body {
 	background-position: center center;
 	background-repeat: no-repeat;
 	will-change: opacity;
+	opacity: 0;
+	z-index: 0;
 }
 
-.bg-current {
+/* 图层状态由 main.js 切换：is-active = 当前显示，is-incoming = 正在切入（始终压在最上面） */
+.bg-layer.is-active {
 	opacity: 1;
 	z-index: 1;
 }
 
-.bg-next {
-	opacity: 0;
+.bg-layer.is-incoming {
 	z-index: 2;
+}
+
+/* 图层里直接放预加载好的 <img>（不再二次请求同一个随机图地址），效果等同 background-size: cover */
+.bg-layer > img,
+.banner-layer > img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	-o-object-fit: cover;
+	object-fit: cover;
+	-o-object-position: center;
+	object-position: center;
+	pointer-events: none;
+	-webkit-user-select: none;
+	user-select: none;
 }
 
 /* 背景图创意动画：毛刺淡出 + 弹性淡入 */
@@ -108,18 +125,17 @@ body {
 	background-position: 50%;
 	background-repeat: no-repeat;
 	will-change: transform, opacity;
+	opacity: 0;
+	z-index: 0;
 }
 
-.banner-current {
+.banner-layer.is-active {
 	opacity: 1;
 	z-index: 1;
-	transform: translateX(0%);
 }
 
-.banner-next {
-	opacity: 1;
+.banner-layer.is-incoming {
 	z-index: 2;
-	transform: translateX(100%);
 }
 
 /* 图片从左往右滑动 */
@@ -288,6 +304,18 @@ body {
 	background-image: url(zy.png);
 }
 
+/* 当前选中的标签（原来两个标签长得一样，看不出在哪一页） */
+.tab-item.active {
+	color: #f55d54;
+	font-weight: 600;
+	box-shadow: 0 2px 10px rgba(245, 93, 84, 0.18);
+}
+
+.tab-item:focus-visible {
+	outline: 2px solid #57a3f3;
+	outline-offset: 2px;
+}
+
 /* ========== 应用列表 ========== */
 /* 背景透明，跟随 #app 的半透明底色；原来的不透明 #f4f6f8 会和上半部分形成一块色差 */
 .app-list {
@@ -307,6 +335,11 @@ body {
 	-webkit-box-align: center;
 	-ms-flex-align: center;
 	align-items: center;
+}
+
+/* 未选中的面板（hidden 属性）；不写这条的话上面的 display:flex 会盖过浏览器默认的隐藏 */
+.app-list[hidden] {
+	display: none;
 }
 
 .item {
@@ -395,39 +428,44 @@ body {
 	margin-top: 2px;
 }
 
-/* ========== 二维码弹窗 ========== */
+/* ========== 二维码弹窗 ==========
+   用原生 <dialog>：showModal() 打开后渲染在浏览器"顶层"，不会被音乐播放器
+   （z-index: 2147483647）之类的悬浮组件挡住；Esc 关闭、焦点管理都是浏览器自带的。 */
 .modal {
-	display: none;
-	position: fixed;
-	z-index: 1;
-	padding-top: 60px;
-	left: 0;
-	top: 0;
-	width: 100%;
-	height: 100%;
-	overflow: auto;
-	background-color: rgb(0, 0, 0);
-	background-color: rgba(0, 0, 0, 0.4);
-}
-
-.modal-content {
-	margin: 5% auto;
-	padding: 20px;
-	border: 1px solid #888;
 	width: 80%;
-	max-width: 700px;
+	max-width: 480px;
+	padding: 44px 20px 20px;
+	border: 0;
+	border-radius: 16px;
+	background: #fff;
+	box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
 }
 
-.close {
-	color: #aaa;
-	float: right;
+.modal::backdrop {
+	background: rgba(0, 0, 0, 0.4);
+}
+
+.modal img {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+
+.modal .close {
+	position: absolute;
+	top: 6px;
+	right: 12px;
+	padding: 0 4px;
+	border: 0;
+	background: none;
+	color: #888;
 	font-size: 28px;
 	font-weight: bold;
+	line-height: 36px;
+	cursor: pointer;
 }
 
-.close:hover,
-.close:focus {
-	color: black;
-	text-decoration: none;
-	cursor: pointer;
+.modal .close:hover,
+.modal .close:focus-visible {
+	color: #222;
 }
